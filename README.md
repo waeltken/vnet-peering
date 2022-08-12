@@ -5,7 +5,7 @@ Vnet peering example with two virtual machines.
 ## How to use
 
 Remove or set the azurerm backend.
-Have an ssh public key read.
+Have an ssh public key ready.
 
 ```shell
 terraform init
