@@ -132,7 +132,7 @@ resource "azurerm_linux_virtual_machine" "vm_1" {
 
   admin_ssh_key {
     username   = var.vm_username
-    public_key = file("~/.ssh/id_rsa.pub")
+    public_key = file(var.ssh_public_key_path)
   }
 
   os_disk {
@@ -160,7 +160,7 @@ resource "azurerm_linux_virtual_machine" "vm_2" {
 
   admin_ssh_key {
     username   = var.vm_username
-    public_key = file("~/.ssh/id_rsa.pub")
+    public_key = file(var.ssh_public_key_path)
   }
 
   os_disk {
