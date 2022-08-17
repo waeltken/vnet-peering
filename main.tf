@@ -13,7 +13,8 @@ terraform {
 }
 
 locals {
-  location = "West Europe"
+  location           = "West Europe"
+  aks_version_prefix = "1.22"
 }
 
 resource "azurerm_resource_group" "example" {
@@ -180,5 +181,67 @@ resource "azurerm_linux_virtual_machine" "vm_2" {
     publisher = "Canonical"
     sku       = "20_04-lts-gen2"
     version   = "20.04.202208100"
+  }
+}
+
+data "azurerm_kubernetes_service_versions" "current" {
+  location       = azurerm_resource_group.example.location
+  version_prefix = local.aks_version_prefix
+}
+
+resource "azurerm_user_assigned_identity" "aks_identity" {
+  resource_group_name = azurerm_resource_group.example.name
+  location            = azurerm_resource_group.example.location
+
+  name = "aks-identity"
+}
+
+resource "azurerm_private_dns_zone" "example" {
+  name                = "privatelink.westeurope.azmk8s.io"
+  resource_group_name = azurerm_resource_group.example.name
+}
+
+resource "azurerm_role_assignment" "aks_subnet" {
+  scope                = azurerm_subnet.subnet_2_1.id
+  role_definition_name = "Network Contributor"
+  principal_id         = azurerm_user_assigned_identity.aks_identity.principal_id
+}
+
+resource "azurerm_role_assignment" "aks_vnet" {
+  scope                = azurerm_virtual_network.vnet_2.id
+  role_definition_name = "Network Contributor"
+  principal_id         = azurerm_user_assigned_identity.aks_identity.principal_id
+}
+
+resource "azurerm_role_assignment" "dns" {
+  scope                = azurerm_private_dns_zone.example.id
+  role_definition_name = "Private DNS Zone Contributor"
+  principal_id         = azurerm_user_assigned_identity.aks_identity.principal_id
+}
+
+resource "azurerm_kubernetes_cluster" "cluster" {
+  name                       = "private-cluster"
+  location                   = azurerm_resource_group.example.location
+  resource_group_name        = azurerm_resource_group.example.name
+  private_cluster_enabled    = true
+  private_dns_zone_id        = azurerm_private_dns_zone.example.id
+  dns_prefix_private_cluster = "cluster"
+
+  kubernetes_version = data.azurerm_kubernetes_service_versions.current.latest_version
+
+  default_node_pool {
+    name           = "default"
+    node_count     = 1
+    vm_size        = "Standard_D2s_v4"
+    vnet_subnet_id = azurerm_subnet.subnet_2_1.id
+  }
+
+  identity {
+    type         = "UserAssigned"
+    identity_ids = [azurerm_user_assigned_identity.aks_identity.id]
+  }
+
+  network_profile {
+    network_plugin = "azure"
   }
 }
